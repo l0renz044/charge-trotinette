@@ -1,7 +1,7 @@
 # Charge trottinette — journal des versions
 
 Trottinette iSinwheel D1 Plus (48 V / 15 Ah / 720 Wh), chargeur 2 A, prise Shelly Plug M Gen3.
-Numérotation : `majeur.mineur.correctif`. Chaque version est archivée dans `versions/`.
+Numérotation : `majeur.mineur.correctif`. Chaque version est un tag git (`vX.Y.Z`) ; voir `VERSIONING.md`.
 
 ## v0.0.2 — fiabilité de la communication avec la prise (2026-11-09)
 

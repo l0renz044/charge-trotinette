@@ -1,0 +1,17 @@
+# Clés de signature : ne jamais les publier
+*.jks
+*.keystore
+keystore.properties
+
+# Android / Gradle
+local.properties
+.gradle/
+build/
+*.apk
+*.aab
+
+# Éditeurs et système
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
