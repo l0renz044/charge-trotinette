@@ -3,6 +3,25 @@
 Trottinette iSinwheel D1 Plus (48 V / 15 Ah / 720 Wh), chargeur 2 A, prise Shelly Plug M Gen3.
 Numérotation : `majeur.mineur.correctif`. Chaque version est un tag git (`vX.Y.Z`) ; voir `VERSIONING.md`.
 
+## v0.1.0 — appli Android (en préparation, non compilée, 2026-11-11)
+
+Ajouté
+- Projet Android natif (Kotlin / Jetpack Compose) dans `android/` : lecture Bluetooth du niveau de batterie, calcul de la durée de charge, commande de la prise Shelly en HTTP local.
+- Lecture Bluetooth (lecture seule) : service `0xFF60`, notifications de `0xFF61`. Trame de type `0x20` : octet 8 = pourcentage ; trame de type `0x21` : octets 7-8 = tension (centièmes de volt), octet 19 = température du moteur. Positions relevées sur la D1 Plus et comparées à l'appli iSinwheel (83 %, 49,8 V / 51,9 V, 25 / 30 °C).
+- Saisie manuelle du niveau si le Bluetooth échoue.
+- Dernière commande envoyée affichée à l'ouverture (type, heure, niveaux, durée, fin prévue, résultat) et comparée à l'état réel de la prise.
+- Reprise des fonctions de la page web v0.0.2 : batterie chaude (délai de refroidissement), « prête pour une heure donnée », charge à 100 % ponctuelle, test de joignabilité, pastille d'état, test des 3 clics, planification enregistrée dans la prise.
+- Planification calculée à partir de l'heure du téléphone, avec avertissement si l'heure de la prise diffère.
+- Mise à jour dans l'appli (même principe que TopDriver) : lecture de `version.json` dans `charge-trotinette-releases`, bandeau « Mise à jour disponible ».
+- Tests unitaires (décodage des trames, calcul des durées) et `android/release.ps1` (compilation, publication, tag).
+
+Limites connues
+- Le code n'a pas pu être compilé ni exécuté dans l'environnement de rédaction : une première série d'erreurs de compilation est possible.
+- Décodage vérifié sur 3 trames seulement ; le pourcentage (octet 8 de la trame `0x20`) est confirmé par un seul relevé (83 %).
+- Interprétation des autres octets inconnue (dont le kilométrage, volontairement non affiché).
+- APK signé avec la clé de debug du PC de compilation : les mises à jour ne s'installent que si l'APK est compilé sur le même PC.
+- Le dépôt `charge-trotinette-releases` n'existe pas encore : la vérification de mise à jour échoue en silence.
+
 ## v0.0.2 — fiabilité de la communication avec la prise (2026-11-09)
 
 Ajouté

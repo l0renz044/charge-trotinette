@@ -15,6 +15,18 @@ Même principe que TopDriver et Sudoku Rescue : un dépôt de sources (celui-ci)
 5. `git push origin main --follow-tags`.
 6. Appli Android uniquement (à partir de la v0.1.0) : publier l'APK, voir plus bas.
 
+## Compiler et publier l'appli Android (à partir de la v0.1.0)
+Sur le PC Windows, comme TopDriver et Sudoku Rescue :
+```powershell
+cd C:\Users\lperr\Documents\charge-trotinette\android
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+.\gradlew.bat test               # tests unitaires (décodage des trames, durées)
+.\gradlew.bat assembleRelease    # APK : app\build\outputs\apk\release\app-release.apk
+```
+Pour publier : `.\release.ps1 -Version 0.1.0` (compile, copie l'APK et `version.json` dans le dépôt de publication, commit, tag, push).
+
+Signature : l'APK de release est signé avec la clé de debug du PC (`%USERPROFILE%\.android\debug.keystore`), ce qui suffit pour un usage personnel. Conséquence : une mise à jour ne s'installe que si l'APK est compilé sur le même PC (ou avec la même clé). Ne jamais committer de clé.
+
 ## Publication de l'APK (à partir de la v0.1.0)
 Dépôt de publication : `charge-trotinette-releases`, avec seulement deux fichiers :
 - `ChargeTrotinette_latest.apk`
