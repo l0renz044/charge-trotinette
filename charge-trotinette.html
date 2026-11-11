@@ -5,14 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Charge trottinette</title>
 <style>
-  :root { --bg:#f5f6f8; --card:#fff; --txt:#1b1e23; --mut:#6b7280; --acc:#16a34a; --stop:#dc2626; --warn:#b45309; --bd:#d9dde3; }
+  :root { --bg:#f5f6f8; --card:#fff; --txt:#1b1e23; --mut:#6b7280; --acc:#16a34a; --stop:#dc2626; --warn:#b45309; --bd:#d9dde3; --neutral:#64748b; }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#111418; --card:#1b2028; --txt:#e8eaed; --mut:#9aa3af; --warn:#fbbf24; --bd:#2c3440; }
   }
   * { box-sizing:border-box; }
   body { margin:0; padding:16px; background:var(--bg); color:var(--txt); font:16px/1.4 system-ui,sans-serif; }
   main { max-width:420px; margin:0 auto; }
-  h1 { font-size:1.2rem; margin:0 0 12px; }
+  .head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 12px; }
+  h1 { font-size:1.2rem; margin:0; }
+  .pill { font-size:.8rem; padding:4px 10px; border-radius:999px; color:#fff; background:var(--neutral); white-space:nowrap; }
+  .pill.ok { background:var(--acc); } .pill.ko { background:var(--stop); }
   .card { background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:14px; margin-bottom:12px; }
   label { display:block; font-size:.85rem; color:var(--mut); margin:10px 0 4px; }
   input, select { width:100%; padding:10px; font-size:1.1rem; border:1px solid var(--bd); border-radius:8px; background:transparent; color:var(--txt); }
@@ -23,6 +26,7 @@
   .warn { text-align:center; color:var(--warn); font-size:.9rem; margin-top:6px; }
   button { width:100%; padding:14px; font-size:1.05rem; font-weight:600; border:0; border-radius:10px; color:#fff; margin-top:10px; }
   #go { background:var(--acc); } #stop { background:var(--stop); }
+  #test { background:var(--neutral); }
   details summary { cursor:pointer; color:var(--mut); }
   .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   #msg { white-space:pre-line; font-size:.9rem; color:var(--mut); min-height:3em; }
@@ -31,7 +35,10 @@
 </head>
 <body>
 <main>
-  <h1>🛴 Charge jusqu'à l'objectif</h1>
+  <div class="head">
+    <h1>🛴 Charge jusqu'à l'objectif</h1>
+    <span id="pill" class="pill">Prise ?</span>
+  </div>
 
   <div class="card">
     <label for="cur">Niveau affiché sur la trottinette (%)</label>
@@ -74,16 +81,20 @@
         <div><label for="maxh">Durée max (h)</label><input id="maxh" type="number" inputmode="decimal" step="0.5" value="8"></div>
       </div>
       <label>Durée = (objectif − niveau) × Ah ÷ A × coefficient. Ajuste le coefficient après un essai (ex. 1,10 si la batterie finit trop basse).</label>
+      <button id="test">Tester la prise (3 clics)</button>
+      <label>Allume la prise 1 s, trois fois de suite : tu dois entendre le relais et voir le voyant. À faire chargeur débranché de la trottinette et hors charge.</label>
     </details>
   </div>
   <footer>Charge trottinette v<span id="ver"></span></footer>
 </main>
 
 <script>
-const VERSION = '0.0.1';
+const VERSION = '0.0.2';
 const $ = id => document.getElementById(id);
 const PERSIST = ['ip','tgt','amps','ah','k','cool','maxh','cur','mode','ready'];
 const ALL = PERSIST.concat(['hot','full']);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const MIN_CHARGE_W = 5;   // en dessous, on considère que le chargeur ne charge pas
 
 function load() {
   try {
@@ -140,22 +151,43 @@ function refresh() {
   save();
 }
 
-function base() {
+function base(silent) {
   const ip = $('ip').value.trim();
-  if (!ip) { $('msg').textContent = 'Renseigne l\'adresse IP dans les réglages.'; return null; }
+  if (!ip) { if (!silent) $('msg').textContent = 'Renseigne l\'adresse IP dans les réglages.'; return null; }
   return 'http://' + ip + '/rpc/';
 }
 
+// ---------- Communication avec la prise ----------
+
+// La prise répond-elle ? Requête courte avec limite de temps ; la réponse n'a pas besoin d'être lisible.
+async function ping(ms) {
+  const b = base(true); if (!b) return false;
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms || 4000);
+  try { await fetch(b + 'Shelly.GetDeviceInfo', { mode: 'no-cors', cache: 'no-store', signal: c.signal }); return true; }
+  catch(e) { return false; }
+  finally { clearTimeout(t); }
+}
+async function updatePill() {
+  const pill = $('pill');
+  if (!base(true)) { pill.className = 'pill'; pill.textContent = 'IP à saisir'; return false; }
+  pill.className = 'pill'; pill.textContent = 'Vérification…';
+  const ok = await ping();
+  pill.className = 'pill ' + (ok ? 'ok' : 'ko');
+  pill.textContent = ok ? 'Prise joignable' : 'Prise injoignable';
+  return ok;
+}
 // Envoi sans lire la réponse (évite les blocages CORS et les doublons).
 async function send(method, params) {
   const b = base(); if (!b) throw new Error('IP manquante');
   await fetch(b.slice(0, -1), { method: 'POST', mode: 'no-cors', body: JSON.stringify({ id: 1, method, params: params || {} }) });
 }
-// Lecture (peut échouer si la prise n'autorise pas la lecture depuis cette page).
+// Lecture : renvoie null si la prise n'autorise pas la lecture depuis cette page.
 async function get(method) {
-  const b = base(); if (!b) return null;
+  const b = base(true); if (!b) return null;
   try { const r = await fetch(b + method); return await r.json(); } catch(e) { return null; }
 }
+const UNREACHABLE = 'Prise injoignable : vérifie qu\'elle est alimentée, sur le Wi-Fi 2,4 GHz, et que l\'adresse IP est la bonne.';
+const UNREADABLE = 'Commande envoyée, mais l\'état n\'est pas lisible depuis cette page (blocage du navigateur). Vérifie dans l\'appli Shelly.';
 
 async function clockWarning() {
   const st = await get('Sys.GetStatus');
@@ -167,10 +199,14 @@ async function clockWarning() {
   return diff > 2 ? '\n⚠ L\'heure de la prise (' + st.time + ') diffère de celle du téléphone : vérifie le fuseau horaire dans l\'appli Shelly.' : '';
 }
 
+// ---------- Actions ----------
+
 async function go() {
   const p = plan();
   if (!p.s) { $('msg').textContent = 'Rien à charger.'; return; }
   const b = base(); if (!b) return;
+  $('msg').textContent = 'Vérification de la prise…';
+  if (!(await updatePill())) { $('msg').textContent = UNREACHABLE + '\nRien n\'a été lancé.'; return; }
   try {
     await send('Schedule.DeleteAll');                     // une seule planification à la fois
     const st0 = await get('Switch.GetStatus?id=0');
@@ -178,7 +214,8 @@ async function go() {
 
     if (p.immediate) {
       await fetch(b + 'Switch.Set?id=0&on=true&toggle_after=' + p.s, { mode: 'no-cors' });
-      $('msg').textContent = 'Charge lancée pour ' + fmtDur(p.s) + '.\nLa prise se coupe toute seule, même si le téléphone s\'éteint.';
+      $('msg').textContent = 'Commande envoyée : charge de ' + fmtDur(p.s) + '. Vérification dans quelques secondes…';
+      setTimeout(verifyCharge, 3500);
     } else {
       const t = new Date(Math.ceil(p.start.getTime() / 60000) * 60000);
       const timespec = '0 ' + t.getMinutes() + ' ' + t.getHours() + ' ' + t.getDate() + ' ' + (t.getMonth() + 1) + ' *';
@@ -186,25 +223,44 @@ async function go() {
         enable: true, timespec,
         calls: [{ method: 'Switch.Set', params: { id: 0, on: true, toggle_after: p.s } }]
       });
-      $('msg').textContent = 'Planification envoyée : démarrage à ' + fmtHour(t) + ', charge ' + fmtDur(p.s) + '.' + await clockWarning();
+      const cw = await clockWarning();
+      const sc = await get('Schedule.List');
+      if (!sc || !sc.jobs) $('msg').textContent = 'Planification envoyée (démarrage à ' + fmtHour(t) + ', charge ' + fmtDur(p.s) + '), mais non vérifiable depuis cette page. Contrôle-la dans l\'appli Shelly.' + cw;
+      else if (!sc.jobs.length) $('msg').textContent = '⚠ La prise n\'a enregistré aucune planification. Réessaie ou planifie depuis l\'appli Shelly.' + cw;
+      else $('msg').textContent = '✅ Planification enregistrée dans la prise : démarrage à ' + fmtHour(t) + ', charge ' + fmtDur(p.s) + '.' + cw;
     }
-  } catch(e) { $('msg').textContent = 'Échec de l\'envoi : ' + e.message; return; }
-  setTimeout(check, 1500);
+  } catch(e) { $('msg').textContent = 'Échec de l\'envoi : ' + e.message; }
+}
+
+// Après un lancement immédiat : la prise est-elle allumée, et débite-t-elle ?
+async function verifyCharge() {
+  const st = await get('Switch.GetStatus?id=0');
+  if (!st) { $('msg').textContent = (await ping()) ? UNREADABLE : UNREACHABLE; return; }
+  const w = Math.round(st.apower || 0);
+  if (!st.output) $('msg').textContent = '⚠ La prise est éteinte : la commande n\'a pas été prise en compte.';
+  else if (w < MIN_CHARGE_W) $('msg').textContent = '⚠ Prise allumée mais seulement ' + w + ' W : le chargeur est-il branché à la trottinette ? (Le chargeur peut mettre quelques secondes à démarrer : touche ce cadre pour revérifier.)';
+  else $('msg').textContent = '✅ Charge en cours : ' + w + ' W. La prise se coupera toute seule, même si le téléphone s\'éteint.';
 }
 
 async function stop() {
   const b = base(); if (!b) return;
+  $('msg').textContent = 'Vérification de la prise…';
+  if (!(await updatePill())) { $('msg').textContent = UNREACHABLE + '\nLa coupure n\'a PAS été envoyée.'; return; }
   try {
     await send('Schedule.DeleteAll');
     await fetch(b + 'Switch.Set?id=0&on=false', { mode: 'no-cors' });
-    $('msg').textContent = 'Planification annulée, prise coupée.';
+    await wait(1500);
+    const st = await get('Switch.GetStatus?id=0');
+    if (!st) $('msg').textContent = 'Coupure envoyée, non vérifiable depuis cette page. Vérifie dans l\'appli Shelly.';
+    else $('msg').textContent = st.output ? '⚠ La prise est encore allumée : réessaie.' : '✅ Planification annulée, prise coupée.';
   } catch(e) { $('msg').textContent = 'Échec : ' + e.message; }
-  setTimeout(check, 1500);
 }
 
 async function check() {
+  const reach = await updatePill();
+  if (!reach) { $('msg').textContent = UNREACHABLE; return; }
   const st = await get('Switch.GetStatus?id=0');
-  if (!st) { $('msg').textContent += '\n(Statut illisible depuis cette page : la commande a probablement été prise en compte.)'; return; }
+  if (!st) { $('msg').textContent = 'Prise joignable, mais la lecture de son état est bloquée par le navigateur. Utilise l\'appli Shelly pour le détail.'; return; }
   let t = 'Prise : ' + (st.output ? 'ON' : 'OFF') + ', ' + Math.round(st.apower || 0) + ' W';
   if (st.aenergy) {
     let e0 = NaN; try { e0 = parseFloat(localStorage.getItem('ct_e0')); } catch(e){}
@@ -215,13 +271,33 @@ async function check() {
   $('msg').textContent = t;
 }
 
+// Trois impulsions de 1 s pour voir/entendre la prise réagir. Chaque impulsion s'éteint seule.
+async function testPlug() {
+  const b = base(); if (!b) return;
+  $('msg').textContent = 'Vérification de la prise…';
+  if (!(await updatePill())) { $('msg').textContent = UNREACHABLE; return; }
+  const st = await get('Switch.GetStatus?id=0');
+  if (st && st.output) { $('msg').textContent = 'La prise est allumée (charge en cours ?). Test annulé pour ne pas couper la charge.'; return; }
+  if (!st && !confirm('L\'état de la prise est illisible. Si une charge est en cours, le test la coupera. Continuer ?')) { $('msg').textContent = 'Test annulé.'; return; }
+  $('test').disabled = true;
+  for (let i = 1; i <= 3; i++) {
+    $('msg').textContent = 'Test ' + i + '/3 : impulsion…';
+    await fetch(b + 'Switch.Set?id=0&on=true&toggle_after=1', { mode: 'no-cors' });
+    await wait(2500);
+  }
+  $('test').disabled = false;
+  $('msg').textContent = 'Test terminé, prise éteinte. As-tu entendu 3 clics ou vu le voyant réagir ? Si oui, la prise obéit.';
+}
+
 ALL.forEach(k => $(k).addEventListener('input', refresh));
+$('ip').addEventListener('change', updatePill);
 $('mode').addEventListener('change', refresh);
 $('go').addEventListener('click', go);
 $('stop').addEventListener('click', stop);
+$('test').addEventListener('click', testPlug);
 $('msg').addEventListener('click', check);
 $('ver').textContent = VERSION;
-load(); refresh();
+load(); refresh(); updatePill();
 </script>
 </body>
 </html>
