@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Charge trottinette</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --txt:#1b1e23; --mut:#6b7280; --acc:#16a34a; --stop:#dc2626; --warn:#b45309; --bd:#d9dde3; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1b2028; --txt:#e8eaed; --mut:#9aa3af; --warn:#fbbf24; --bd:#2c3440; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--txt); font:16px/1.4 system-ui,sans-serif; }
+  main { max-width:420px; margin:0 auto; }
+  h1 { font-size:1.2rem; margin:0 0 12px; }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:.85rem; color:var(--mut); margin:10px 0 4px; }
+  input, select { width:100%; padding:10px; font-size:1.1rem; border:1px solid var(--bd); border-radius:8px; background:transparent; color:var(--txt); }
+  input[type=checkbox] { width:auto; transform:scale(1.3); margin-right:10px; }
+  .chk { display:flex; align-items:center; margin:12px 0 0; color:var(--txt); font-size:1rem; }
+  .big { font-size:2.4rem; font-weight:700; text-align:center; margin:8px 0 2px; }
+  .sub { text-align:center; color:var(--mut); }
+  .warn { text-align:center; color:var(--warn); font-size:.9rem; margin-top:6px; }
+  button { width:100%; padding:14px; font-size:1.05rem; font-weight:600; border:0; border-radius:10px; color:#fff; margin-top:10px; }
+  #go { background:var(--acc); } #stop { background:var(--stop); }
+  details summary { cursor:pointer; color:var(--mut); }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  #msg { white-space:pre-line; font-size:.9rem; color:var(--mut); min-height:3em; }
+  footer { text-align:center; color:var(--mut); font-size:.8rem; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🛴 Charge jusqu'à l'objectif</h1>
+
+  <div class="card">
+    <label for="cur">Niveau affiché sur la trottinette (%)</label>
+    <input id="cur" type="number" inputmode="numeric" min="0" max="100" value="30">
+
+    <label for="mode">Démarrage</label>
+    <select id="mode">
+      <option value="now">Dès que possible</option>
+      <option value="ready">Prête pour une heure donnée</option>
+    </select>
+    <div id="readyBox" hidden>
+      <label for="ready">Prête pour (heure)</label>
+      <input id="ready" type="time" value="07:30">
+    </div>
+
+    <label class="chk"><input id="hot" type="checkbox"> Batterie chaude (attendre avant de charger)</label>
+    <label class="chk"><input id="full" type="checkbox"> Charger à 100 % cette fois</label>
+
+    <div class="big" id="dur">–</div>
+    <div class="sub" id="when">–</div>
+    <div class="warn" id="warn"></div>
+
+    <button id="go">Lancer / planifier</button>
+    <button id="stop">Annuler et couper</button>
+  </div>
+
+  <div class="card"><div id="msg">Prêt. Touche ce cadre pour vérifier l'état de la prise.</div></div>
+
+  <div class="card">
+    <details>
+      <summary>Réglages</summary>
+      <label for="ip">Adresse IP de la Shelly</label>
+      <input id="ip" type="text" inputmode="decimal" placeholder="192.168.1.xx">
+      <div class="row">
+        <div><label for="tgt">Objectif (%)</label><input id="tgt" type="number" inputmode="numeric" value="80"></div>
+        <div><label for="amps">Chargeur (A)</label><input id="amps" type="number" inputmode="decimal" step="0.1" value="2"></div>
+        <div><label for="ah">Batterie (Ah)</label><input id="ah" type="number" inputmode="decimal" step="0.1" value="15"></div>
+        <div><label for="k">Coefficient</label><input id="k" type="number" inputmode="decimal" step="0.01" value="1.00"></div>
+        <div><label for="cool">Refroidissement (min)</label><input id="cool" type="number" inputmode="numeric" value="30"></div>
+        <div><label for="maxh">Durée max (h)</label><input id="maxh" type="number" inputmode="decimal" step="0.5" value="8"></div>
+      </div>
+      <label>Durée = (objectif − niveau) × Ah ÷ A × coefficient. Ajuste le coefficient après un essai (ex. 1,10 si la batterie finit trop basse).</label>
+    </details>
+  </div>
+  <footer>Charge trottinette v<span id="ver"></span></footer>
+</main>
+
+<script>
+const VERSION = '0.0.1';
+const $ = id => document.getElementById(id);
+const PERSIST = ['ip','tgt','amps','ah','k','cool','maxh','cur','mode','ready'];
+const ALL = PERSIST.concat(['hot','full']);
+
+function load() {
+  try {
+    PERSIST.forEach(k => { const v = localStorage.getItem('ct_'+k); if (v !== null) $(k).value = v; });
+  } catch(e){}
+}
+function save() {
+  try { PERSIST.forEach(k => localStorage.setItem('ct_'+k, $(k).value)); } catch(e){}
+}
+
+function fmtDur(s) { const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h + ' h ' + String(m).padStart(2,'0'); }
+function fmtHour(d) { return d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); }
+
+// Calcule durée, heure de démarrage et de fin.
+function plan() {
+  const cur = parseFloat($('cur').value);
+  const tgt = $('full').checked ? 100 : parseFloat($('tgt').value);
+  const amps = parseFloat($('amps').value), ah = parseFloat($('ah').value);
+  const k = parseFloat($('k').value) || 1;
+  const cool = parseFloat($('cool').value) || 0;
+  const maxh = parseFloat($('maxh').value) || 8;
+  if (isNaN(cur) || isNaN(tgt) || !amps || !ah || tgt <= cur) return { s: 0 };
+
+  const s = Math.min(Math.round((tgt - cur) / 100 * ah / amps * k * 3600), Math.round(maxh * 3600));
+  const now = new Date();
+  const earliest = new Date(now.getTime() + ($('hot').checked ? cool * 60000 : 0));
+  let start = earliest, warn = '';
+
+  if ($('mode').value === 'ready') {
+    const [hh, mm] = ($('ready').value || '07:30').split(':').map(Number);
+    const ready = new Date(now); ready.setHours(hh, mm, 0, 0);
+    if (ready <= now) ready.setDate(ready.getDate() + 1);
+    const wanted = new Date(ready.getTime() - s * 1000);
+    if (wanted > earliest) start = wanted;
+    else warn = 'Trop juste pour finir à l\'heure demandée : démarrage au plus tôt.';
+  }
+  if (s >= maxh * 3600) warn = (warn ? warn + ' ' : '') + 'Durée plafonnée à ' + maxh + ' h.';
+  const immediate = start.getTime() - now.getTime() < 60000;
+  const end = new Date(start.getTime() + s * 1000);
+  return { s, start, end, immediate, warn, tgt };
+}
+
+function refresh() {
+  $('readyBox').hidden = $('mode').value !== 'ready';
+  const p = plan();
+  if (!p.s) {
+    $('dur').textContent = 'Déjà à l\'objectif';
+    $('when').textContent = '–'; $('warn').textContent = '';
+  } else {
+    $('dur').textContent = fmtDur(p.s);
+    $('when').textContent = (p.immediate ? 'Démarre maintenant' : 'Démarre à ' + fmtHour(p.start)) + ' · fin vers ' + fmtHour(p.end) + ' (' + p.tgt + ' %)';
+    $('warn').textContent = p.warn;
+  }
+  save();
+}
+
+function base() {
+  const ip = $('ip').value.trim();
+  if (!ip) { $('msg').textContent = 'Renseigne l\'adresse IP dans les réglages.'; return null; }
+  return 'http://' + ip + '/rpc/';
+}
+
+// Envoi sans lire la réponse (évite les blocages CORS et les doublons).
+async function send(method, params) {
+  const b = base(); if (!b) throw new Error('IP manquante');
+  await fetch(b.slice(0, -1), { method: 'POST', mode: 'no-cors', body: JSON.stringify({ id: 1, method, params: params || {} }) });
+}
+// Lecture (peut échouer si la prise n'autorise pas la lecture depuis cette page).
+async function get(method) {
+  const b = base(); if (!b) return null;
+  try { const r = await fetch(b + method); return await r.json(); } catch(e) { return null; }
+}
+
+async function clockWarning() {
+  const st = await get('Sys.GetStatus');
+  if (!st || !st.time) return '';
+  const [h, m] = st.time.split(':').map(Number);
+  const now = new Date();
+  let diff = Math.abs((h * 60 + m) - (now.getHours() * 60 + now.getMinutes()));
+  diff = Math.min(diff, 1440 - diff);
+  return diff > 2 ? '\n⚠ L\'heure de la prise (' + st.time + ') diffère de celle du téléphone : vérifie le fuseau horaire dans l\'appli Shelly.' : '';
+}
+
+async function go() {
+  const p = plan();
+  if (!p.s) { $('msg').textContent = 'Rien à charger.'; return; }
+  const b = base(); if (!b) return;
+  try {
+    await send('Schedule.DeleteAll');                     // une seule planification à la fois
+    const st0 = await get('Switch.GetStatus?id=0');
+    try { if (st0 && st0.aenergy) localStorage.setItem('ct_e0', st0.aenergy.total); } catch(e){}
+
+    if (p.immediate) {
+      await fetch(b + 'Switch.Set?id=0&on=true&toggle_after=' + p.s, { mode: 'no-cors' });
+      $('msg').textContent = 'Charge lancée pour ' + fmtDur(p.s) + '.\nLa prise se coupe toute seule, même si le téléphone s\'éteint.';
+    } else {
+      const t = new Date(Math.ceil(p.start.getTime() / 60000) * 60000);
+      const timespec = '0 ' + t.getMinutes() + ' ' + t.getHours() + ' ' + t.getDate() + ' ' + (t.getMonth() + 1) + ' *';
+      await send('Schedule.Create', {
+        enable: true, timespec,
+        calls: [{ method: 'Switch.Set', params: { id: 0, on: true, toggle_after: p.s } }]
+      });
+      $('msg').textContent = 'Planification envoyée : démarrage à ' + fmtHour(t) + ', charge ' + fmtDur(p.s) + '.' + await clockWarning();
+    }
+  } catch(e) { $('msg').textContent = 'Échec de l\'envoi : ' + e.message; return; }
+  setTimeout(check, 1500);
+}
+
+async function stop() {
+  const b = base(); if (!b) return;
+  try {
+    await send('Schedule.DeleteAll');
+    await fetch(b + 'Switch.Set?id=0&on=false', { mode: 'no-cors' });
+    $('msg').textContent = 'Planification annulée, prise coupée.';
+  } catch(e) { $('msg').textContent = 'Échec : ' + e.message; }
+  setTimeout(check, 1500);
+}
+
+async function check() {
+  const st = await get('Switch.GetStatus?id=0');
+  if (!st) { $('msg').textContent += '\n(Statut illisible depuis cette page : la commande a probablement été prise en compte.)'; return; }
+  let t = 'Prise : ' + (st.output ? 'ON' : 'OFF') + ', ' + Math.round(st.apower || 0) + ' W';
+  if (st.aenergy) {
+    let e0 = NaN; try { e0 = parseFloat(localStorage.getItem('ct_e0')); } catch(e){}
+    t += '\nÉnergie depuis le lancement : ' + (isNaN(e0) ? '?' : Math.round(st.aenergy.total - e0)) + ' Wh';
+  }
+  const sc = await get('Schedule.List');
+  if (sc && sc.jobs) t += '\nPlanifications dans la prise : ' + sc.jobs.length + (sc.jobs[0] ? ' (' + sc.jobs[0].timespec + ')' : '');
+  $('msg').textContent = t;
+}
+
+ALL.forEach(k => $(k).addEventListener('input', refresh));
+$('mode').addEventListener('change', refresh);
+$('go').addEventListener('click', go);
+$('stop').addEventListener('click', stop);
+$('msg').addEventListener('click', check);
+$('ver').textContent = VERSION;
+load(); refresh();
+</script>
+</body>
+</html>
