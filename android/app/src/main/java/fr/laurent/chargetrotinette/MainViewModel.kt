@@ -28,6 +28,7 @@ data class UiState(
     val lastCommand: LastCommand? = null,
     val message: String = "Prêt.",
     val busy: Boolean = false,
+    val wifi: WifiCheck? = null,
     val updateLatest: String? = null,
 )
 
@@ -55,8 +56,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ---------- Saisies ----------
 
     fun onSettings(s: Settings) {
+        val ssidChanged = s.plugSsid != ui.settings.plugSsid
         ui = ui.copy(settings = s)
         storage.saveSettings(s)
+        if (ssidChanged) checkWifi()
     }
 
     fun onCurrentText(t: String) {
@@ -152,9 +155,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- Wi-Fi du téléphone ----------
+
+    private fun wifiNow(): WifiCheck =
+        NetworkChecker.check(getApplication<Application>(), ui.settings.plugSsid)
+
+    /** Le téléphone est-il sur le Wi-Fi de la prise ? Avec [showMessage], le résultat s'affiche dans le message. */
+    fun checkWifi(showMessage: Boolean = false) {
+        val w = wifiNow()
+        ui = if (showMessage) ui.copy(wifi = w, message = Fmt.wifi(w)) else ui.copy(wifi = w)
+    }
+
+    /** Enregistre le Wi-Fi actuel du téléphone comme réseau de la prise. */
+    fun useCurrentWifi() {
+        val ssid = NetworkChecker.currentSsid(getApplication<Application>())
+        if (ssid == null || !NetworkChecker.isOnWifi(getApplication<Application>())) {
+            checkWifi(true)
+            return
+        }
+        onSettings(ui.settings.copy(plugSsid = ssid))
+        ui = ui.copy(message = "Réseau de la prise enregistré : « $ssid ».")
+        checkWifi()
+    }
+
+    /** Demande à la prise le nom de son Wi-Fi (le téléphone doit pouvoir l'atteindre). */
+    fun readPlugWifi() {
+        if (ui.busy) return
+        val client = ShellyClient(ui.settings.plugHost)
+        viewModelScope.launch {
+            ui = ui.copy(busy = true, message = "Lecture du réseau Wi-Fi de la prise…")
+            val ssid = try {
+                client.wifiSsid()
+            } catch (e: Exception) {
+                null
+            }
+            if (ssid == null) {
+                ui = ui.copy(
+                    busy = false,
+                    message = "La prise n'a pas donné son réseau Wi-Fi (injoignable ou information absente). Saisis-le à la main.",
+                )
+            } else {
+                onSettings(ui.settings.copy(plugSsid = ssid))
+                ui = ui.copy(busy = false, message = "Réseau de la prise enregistré : « $ssid ».")
+                checkWifi()
+            }
+        }
+    }
+
     // ---------- Prise (Shelly) ----------
 
     fun refreshPlug() {
+        checkWifi()
         val host = ui.settings.plugHost
         viewModelScope.launch {
             val client = ShellyClient(host)
@@ -191,7 +242,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             ui = ui.copy(busy = true, message = "Vérification de la prise…")
             if (!client.ping()) {
-                ui = ui.copy(busy = false, plugReachable = false, message = "$UNREACHABLE\nRien n'a été lancé.")
+                val w = wifiNow()
+                ui = ui.copy(busy = false, plugReachable = false, wifi = w, message = "$UNREACHABLE\n${Fmt.wifi(w)}\nRien n'a été lancé.")
                 return@launch
             }
             ui = ui.copy(plugReachable = true)
@@ -278,7 +330,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             ui = ui.copy(busy = true, message = "Vérification de la prise…")
             if (!client.ping()) {
-                ui = ui.copy(busy = false, plugReachable = false, message = "$UNREACHABLE\nLa coupure n'a PAS été envoyée.")
+                val w = wifiNow()
+                ui = ui.copy(busy = false, plugReachable = false, wifi = w, message = "$UNREACHABLE\n${Fmt.wifi(w)}\nLa coupure n'a PAS été envoyée.")
                 return@launch
             }
             val sentAt = System.currentTimeMillis()
@@ -329,7 +382,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             ui = ui.copy(busy = true, message = "Vérification de la prise…")
             if (!client.ping()) {
-                ui = ui.copy(busy = false, plugReachable = false, message = UNREACHABLE)
+                val w = wifiNow()
+                ui = ui.copy(busy = false, plugReachable = false, wifi = w, message = "$UNREACHABLE\n${Fmt.wifi(w)}")
                 return@launch
             }
             val before = runCatching { client.status() }.getOrNull()

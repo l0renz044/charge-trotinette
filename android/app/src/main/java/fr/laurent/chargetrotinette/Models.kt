@@ -6,6 +6,8 @@ import org.json.JSONObject
 data class Settings(
     val plugHost: String = "192.168.1.23",
     val scooterMac: String = "F0:65:C0:46:26:95",
+    /** Nom du Wi-Fi sur lequel se trouve la prise (vide = pas encore renseigné). */
+    val plugSsid: String = "",
     val targetPercent: Int = 80,
     val chargerAmps: Double = 2.0,
     val batteryAh: Double = 15.0,

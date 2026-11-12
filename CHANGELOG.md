@@ -3,7 +3,24 @@
 Trottinette iSinwheel D1 Plus (48 V / 15 Ah / 720 Wh), chargeur 2 A, prise Shelly Plug M Gen3.
 Numérotation : `majeur.mineur.correctif`. Chaque version est un tag git (`vX.Y.Z`) ; voir `VERSIONING.md`.
 
-## v0.1.0 — appli Android (en préparation, non compilée, 2026-11-11)
+## v0.1.1 — test du réseau Wi-Fi (2026-11-12)
+
+Ajouté
+- Réglage « Wi-Fi de la prise » (nom du réseau), saisi à la main, repris du téléphone (« Réseau actuel ») ou lu dans la prise (« Lire depuis la prise »).
+- Ligne d'état sous l'en-tête : le téléphone est-il sur le Wi-Fi de la prise ? (OK, réseau différent, pas de Wi-Fi, localisation à autoriser ou activer). Touche pour retester.
+- Bouton « Tester le réseau Wi-Fi » dans les Réglages.
+- Si la prise ne répond pas lors d'un lancement, d'une coupure ou du test, le message ajoute le diagnostic du réseau.
+- Permission de localisation (exigée par Android pour lire le nom du Wi-Fi ; la position n'est pas utilisée), plus ACCESS_WIFI_STATE et ACCESS_NETWORK_STATE.
+
+Corrigé
+- Lecture de l'heure de la prise : une valeur JSON nulle n'est plus lue comme le texte « null ».
+
+Limites connues
+- Pas de liste déroulante des réseaux : Android limite fortement les scans Wi-Fi et ne liste que les réseaux visibles, pas celui de la prise.
+- Le test du nom de réseau est un diagnostic ; la pastille « prise joignable » reste le vrai test.
+- Non compilé dans l'environnement de rédaction.
+
+## v0.1.0 — appli Android (testée sur téléphone, 2026-11-12)
 
 Ajouté
 - Projet Android natif (Kotlin / Jetpack Compose) dans `android/` : lecture Bluetooth du niveau de batterie, calcul de la durée de charge, commande de la prise Shelly en HTTP local.
@@ -16,7 +33,7 @@ Ajouté
 - Tests unitaires (décodage des trames, calcul des durées) et `android/release.ps1` (compilation, publication, tag).
 
 Limites connues
-- Le code n'a pas pu être compilé ni exécuté dans l'environnement de rédaction : une première série d'erreurs de compilation est possible.
+- Compilée et testée sur le téléphone de l'utilisateur le 2026-11-12 : fonctionne (prise, Bluetooth, charge).
 - Décodage vérifié sur 3 trames seulement ; le pourcentage (octet 8 de la trame `0x20`) est confirmé par un seul relevé (83 %).
 - Interprétation des autres octets inconnue (dont le kilométrage, volontairement non affiché).
 - APK signé avec la clé de debug du PC de compilation : les mises à jour ne s'installent que si l'APK est compilé sur le même PC.

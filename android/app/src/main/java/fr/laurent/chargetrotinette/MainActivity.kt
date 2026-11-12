@@ -167,6 +167,26 @@ fun MainScreen(vm: MainViewModel) {
         if (granted) vm.readScooter() else permissionLauncher.launch(permissions)
     }
 
+    // Test du Wi-Fi : Android exige la permission de localisation pour lire le nom du réseau.
+    var afterLocation by remember { mutableStateOf("check") }
+    val locationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            if (afterLocation == "use") vm.useCurrentWifi() else vm.checkWifi(true)
+        } else {
+            vm.onMessage("Localisation refusée : Android l'exige pour lire le nom du Wi-Fi.")
+        }
+    }
+    fun wifiAction(action: String) {
+        afterLocation = action
+        if (NetworkChecker.hasLocationPermission(context)) {
+            if (action == "use") vm.useCurrentWifi() else vm.checkWifi(true)
+        } else {
+            locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     var settingsOpen by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -185,6 +205,15 @@ fun MainScreen(vm: MainViewModel) {
             ) {
                 Text("🛴 Charge trottinette", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 PlugPill(ui.plugReachable) { vm.refreshPlug() }
+            }
+
+            val wifi = ui.wifi
+            if (wifi != null) {
+                Text(
+                    Fmt.wifi(wifi),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth().clickable { wifiAction("check") },
+                )
             }
 
             if (ui.updateLatest != null) {
@@ -331,6 +360,32 @@ fun MainScreen(vm: MainViewModel) {
                     SettingField("Adresse Bluetooth de la trottinette", s.scooterMac, KeyboardType.Ascii) {
                         vm.onSettings(s.copy(scooterMac = it.trim().uppercase()))
                     }
+                    OutlinedTextField(
+                        value = s.plugSsid,
+                        onValueChange = { vm.onSettings(s.copy(plugSsid = it)) },
+                        label = { Text("Wi-Fi de la prise (nom du réseau)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { wifiAction("use") },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Réseau actuel") }
+                        OutlinedButton(
+                            onClick = { vm.readPlugWifi() },
+                            enabled = !ui.busy,
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Lire depuis la prise") }
+                    }
+                    OutlinedButton(
+                        onClick = { wifiAction("check") },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Tester le réseau Wi-Fi") }
+                    Text(
+                        "Android ne donne le nom du Wi-Fi qu'avec la localisation autorisée et activée. L'appli n'utilise pas ta position.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     SettingField("Objectif de charge (%)", s.targetPercent.toString(), KeyboardType.Number) { text ->
                         val v = text.toIntOrNull()
                         if (v != null && v in 1..100) vm.onSettings(s.copy(targetPercent = v))

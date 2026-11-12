@@ -100,7 +100,16 @@ class ShellyClient(host: String) {
     /** Heure locale de la prise, au format HH:MM, ou null si elle n'est pas disponible. */
     suspend fun plugClock(): String? {
         val j = JSONObject(request("/rpc/Sys.GetStatus"))
-        val t = j.optString("time", "")
+        if (!j.has("time") || j.isNull("time")) return null
+        val t = j.getString("time")
         return if (t.isEmpty()) null else t
+    }
+
+    /** Nom du Wi-Fi auquel la prise est connectée, ou null s'il n'est pas disponible. */
+    suspend fun wifiSsid(): String? {
+        val j = JSONObject(request("/rpc/Wifi.GetStatus"))
+        if (!j.has("ssid") || j.isNull("ssid")) return null
+        val s = j.getString("ssid")
+        return if (s.isEmpty()) null else s
     }
 }

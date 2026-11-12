@@ -17,6 +17,7 @@ class Storage(context: Context) {
         return Settings(
             plugHost = str("plugHost", d.plugHost),
             scooterMac = str("scooterMac", d.scooterMac),
+            plugSsid = str("plugSsid", d.plugSsid),
             targetPercent = int("targetPercent", d.targetPercent),
             chargerAmps = dbl("chargerAmps", d.chargerAmps),
             batteryAh = dbl("batteryAh", d.batteryAh),
@@ -30,6 +31,7 @@ class Storage(context: Context) {
         prefs.edit()
             .putString("plugHost", s.plugHost)
             .putString("scooterMac", s.scooterMac)
+            .putString("plugSsid", s.plugSsid)
             .putString("targetPercent", s.targetPercent.toString())
             .putString("chargerAmps", s.chargerAmps.toString())
             .putString("batteryAh", s.batteryAh.toString())

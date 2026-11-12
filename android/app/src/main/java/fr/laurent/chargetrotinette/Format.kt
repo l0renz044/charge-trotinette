@@ -27,6 +27,19 @@ object Fmt {
 
     fun volts(v: Double): String = String.format(Locale.FRANCE, "%.1f", v)
 
+    /** Texte du test « le téléphone est-il sur le Wi-Fi de la prise ? ». */
+    fun wifi(c: WifiCheck): String = when (c.state) {
+        WifiState.OK -> "✅ Téléphone sur le Wi-Fi de la prise (« ${c.currentSsid} »)."
+        WifiState.DIFFERENT ->
+            "⚠ Le téléphone est sur « ${c.currentSsid} » alors que la prise est sur « ${c.expectedSsid} »."
+        WifiState.NO_WIFI -> "⚠ Le téléphone n'est pas connecté en Wi-Fi (données mobiles ?)."
+        WifiState.NEED_PERMISSION -> "Autorise la localisation pour que l'appli lise le nom du Wi-Fi (touche ici)."
+        WifiState.LOCATION_OFF -> "Active la localisation du téléphone pour lire le nom du Wi-Fi."
+        WifiState.UNKNOWN_SSID -> "Nom du Wi-Fi illisible."
+        WifiState.NOT_CONFIGURED ->
+            "Wi-Fi actuel : « ${c.currentSsid} ». Renseigne le réseau de la prise dans les Réglages pour le vérifier."
+    }
+
     /** Description de la dernière commande envoyée à la prise. */
     fun describe(c: LastCommand): String {
         val title = when (c.type) {
