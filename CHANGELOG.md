@@ -3,6 +3,15 @@
 Trottinette iSinwheel D1 Plus (48 V / 15 Ah / 720 Wh), chargeur 2 A, prise Shelly Plug M Gen3.
 Numérotation : `majeur.mineur.correctif`. Chaque version est un tag git (`vX.Y.Z`) ; voir `VERSIONING.md`.
 
+## v0.1.3 — activation du Bluetooth (2026-11-12)
+
+Ajouté
+- Si le Bluetooth du téléphone est éteint, « Lire (Bluetooth) » affiche la boîte de dialogue Android « Autoriser l'appli à activer le Bluetooth ? » ; après acceptation, la lecture démarre toute seule. En cas de refus ou de téléphone sans Bluetooth, un message l'indique.
+
+Limites connues
+- Android n'autorise pas l'activation silencieuse : la confirmation est obligatoire.
+- Non compilé dans l'environnement de rédaction.
+
 ## v0.1.2 — dépôt unique pour les mises à jour (2026-11-12)
 
 Modifié
