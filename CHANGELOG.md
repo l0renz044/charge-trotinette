@@ -3,6 +3,13 @@
 Trottinette iSinwheel D1 Plus (48 V / 15 Ah / 720 Wh), chargeur 2 A, prise Shelly Plug M Gen3.
 Numérotation : `majeur.mineur.correctif`. Chaque version est un tag git (`vX.Y.Z`) ; voir `VERSIONING.md`.
 
+## v0.1.2 — dépôt unique pour les mises à jour (2026-11-12)
+
+Modifié
+- Comme TopDriver, un seul dépôt (`charge-trotinette`, public) contient les sources, `version.json` et `ChargeTrotinette_latest.apk`. L'appli lit ces deux fichiers à la racine du dépôt.
+- `release.ps1` : compile, copie l'APK et écrit `version.json` à la racine, puis commit, tag et push. Plus de dépôt `charge-trotinette-releases`.
+- `.gitignore` : l'APK `ChargeTrotinette_latest.apk` est le seul APK suivi.
+
 ## v0.1.1 — test du réseau Wi-Fi (2026-11-12)
 
 Ajouté
@@ -37,7 +44,7 @@ Limites connues
 - Décodage vérifié sur 3 trames seulement ; le pourcentage (octet 8 de la trame `0x20`) est confirmé par un seul relevé (83 %).
 - Interprétation des autres octets inconnue (dont le kilométrage, volontairement non affiché).
 - APK signé avec la clé de debug du PC de compilation : les mises à jour ne s'installent que si l'APK est compilé sur le même PC.
-- Le dépôt `charge-trotinette-releases` n'existe pas encore : la vérification de mise à jour échoue en silence.
+- Les adresses de mise à jour pointaient vers un dépôt `charge-trotinette-releases` abandonné à partir de la v0.1.2.
 
 ## v0.0.2 — fiabilité de la communication avec la prise (2026-11-09)
 

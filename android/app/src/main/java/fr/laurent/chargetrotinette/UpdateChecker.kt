@@ -9,9 +9,9 @@ import java.net.URL
 /** Même principe que TopDriver : version.json sur GitHub + APK le plus récent. */
 object UpdateChecker {
     const val VERSION_URL =
-        "https://raw.githubusercontent.com/l0renz044/charge-trotinette-releases/main/version.json"
+        "https://raw.githubusercontent.com/l0renz044/charge-trotinette/main/version.json"
     const val APK_URL =
-        "https://github.com/l0renz044/charge-trotinette-releases/raw/main/ChargeTrotinette_latest.apk"
+        "https://github.com/l0renz044/charge-trotinette/raw/main/ChargeTrotinette_latest.apk"
 
     /** Dernière version publiée (ex. « v0.1.0 »), ou null si injoignable. */
     suspend fun latestVersion(): String? = withContext(Dispatchers.IO) {

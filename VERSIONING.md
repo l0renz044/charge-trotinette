@@ -1,6 +1,6 @@
 # Gestion des versions
 
-Même principe que TopDriver et Sudoku Rescue : un dépôt de sources (celui-ci) et un dépôt de publication qui contient l'APK et `version.json`.
+Même principe que TopDriver et Sudoku Rescue : un seul dépôt (`l0renz044/charge-trotinette`, public) qui contient les sources, l'APK le plus récent et `version.json`.
 
 ## Numérotation
 - `majeur.mineur.correctif`, par exemple `0.0.2`. Dans les tags et dans `version.json`, le numéro est précédé de « v » (`v0.0.2`).
@@ -23,16 +23,16 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat test               # tests unitaires (décodage des trames, durées)
 .\gradlew.bat assembleRelease    # APK : app\build\outputs\apk\release\app-release.apk
 ```
-Pour publier : `.\release.ps1 -Version 0.1.0` (compile, copie l'APK et `version.json` dans le dépôt de publication, commit, tag, push).
+Pour publier : `.\release.ps1 -Version 0.1.0` (compile, copie l'APK et écrit `version.json` à la racine du dépôt, commit, tag, push).
 
 Signature : l'APK de release est signé avec la clé de debug du PC (`%USERPROFILE%\.android\debug.keystore`), ce qui suffit pour un usage personnel. Conséquence : une mise à jour ne s'installe que si l'APK est compilé sur le même PC (ou avec la même clé). Ne jamais committer de clé.
 
 ## Publication de l'APK (à partir de la v0.1.0)
-Dépôt de publication : `charge-trotinette-releases`, avec seulement deux fichiers :
+Deux fichiers à la racine du dépôt, mis à jour par `release.ps1` :
 - `ChargeTrotinette_latest.apk`
 - `version.json`, au même format que TopDriver : `{ "latest": "vX.Y.Z" }`
 
-Au lancement, l'appli lit `https://raw.githubusercontent.com/l0renz044/charge-trotinette-releases/main/version.json`. Si la version publiée est plus récente que la sienne, elle affiche « Mise à jour disponible » et propose de télécharger l'APK.
+Au lancement, l'appli lit `https://raw.githubusercontent.com/l0renz044/charge-trotinette/main/version.json`. Si la version publiée est plus récente que la sienne, elle affiche « Mise à jour disponible » et propose de télécharger l'APK.
 
 ## Retour en arrière
 - Voir une ancienne version : `git checkout vX.Y.Z` (puis `git checkout main` pour revenir).
@@ -41,5 +41,5 @@ Au lancement, l'appli lit `https://raw.githubusercontent.com/l0renz044/charge-tr
 
 ## Règles
 - Ne jamais committer la clé de signature (`*.jks`) ni ses mots de passe : le `.gitignore` les exclut.
-- Ne pas committer d'APK dans ce dépôt : ils vont dans le dépôt de publication.
+- Le seul APK committé est `ChargeTrotinette_latest.apk` à la racine (le `.gitignore` exclut les autres). Le dépôt doit rester public pour que l'appli puisse le lire.
 - Historique : les versions v0.0.1 et v0.0.2 ont été reconstituées après coup à partir des copies archivées ; elles ont donc la même date de commit.

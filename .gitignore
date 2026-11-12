@@ -8,6 +8,8 @@ local.properties
 .gradle/
 build/
 *.apk
+# Sauf l'APK publie a la racine (mise a jour dans l'appli)
+!/ChargeTrotinette_latest.apk
 *.aab
 
 # Éditeurs et système
