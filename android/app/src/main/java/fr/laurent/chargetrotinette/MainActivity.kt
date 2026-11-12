@@ -1,7 +1,11 @@
 package fr.laurent.chargetrotinette
 
 import android.Manifest
+import android.app.Activity
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.Intent
+import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -151,11 +155,29 @@ fun MainScreen(vm: MainViewModel) {
             arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
+    // Bluetooth éteint : Android impose une boîte de dialogue « Autoriser à activer le Bluetooth ? ».
+    val enableBluetoothLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            vm.readScooter()
+        } else {
+            vm.onMessage("Bluetooth non activé : impossible de lire la trottinette. Saisis le niveau à la main.")
+        }
+    }
+    fun readIfBluetoothOn() {
+        val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+        when {
+            adapter == null -> vm.onMessage("Ce téléphone n'a pas de Bluetooth. Saisis le niveau à la main.")
+            adapter.isEnabled -> vm.readScooter()
+            else -> enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+        }
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         if (result.values.all { it }) {
-            vm.readScooter()
+            readIfBluetoothOn()
         } else {
             vm.onMessage("Permission Bluetooth refusée : impossible de lire la trottinette. Saisis le niveau à la main.")
         }
@@ -164,7 +186,7 @@ fun MainScreen(vm: MainViewModel) {
         val granted = permissions.all {
             ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
         }
-        if (granted) vm.readScooter() else permissionLauncher.launch(permissions)
+        if (granted) readIfBluetoothOn() else permissionLauncher.launch(permissions)
     }
 
     // Test du Wi-Fi : Android exige la permission de localisation pour lire le nom du réseau.
